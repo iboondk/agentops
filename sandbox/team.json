@@ -1,0 +1,10 @@
+{
+  "team": "platform",
+  "owner": "on-call rotation",
+  "members": [
+    { "name": "Ada", "role": "infra", "oncall": true },
+    { "name": "Ben", "role": "backend", "oncall": false },
+    { "name": "Chen", "role": "data", "oncall": true }
+  ],
+  "escalation": "page the infra lead after 15 minutes without a response"
+}

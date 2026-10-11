@@ -1,0 +1,6 @@
+Pricing notes (sample data, not real provider prices)
+
+- Starter tier: fixed monthly fee, includes 100k agent steps.
+- Team tier: per-seat fee, shared tool registry and trace retention of 30 days.
+- Overage: billed per 1,000 tool calls above the included amount.
+- Discounts: annual prepayment only, no mid-term refunds.

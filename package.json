@@ -1,0 +1,42 @@
+{
+  "name": "agentops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "author": "iboondk",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/api/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "eval": "tsx src/eval/run.ts",
+    "mcp": "tsx src/mcp/server.ts",
+    "api": "tsx src/api/server.ts",
+    "worker": "tsx src/queue/worker.ts",
+    "ui": "tsx src/ui/server.ts",
+    "validate:compose": "node scripts/validate-compose.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "^2.12.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/resources": "^2.12.0",
+    "@opentelemetry/sdk-trace-base": "^2.12.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
+    "bullmq": "^6.3.12",
+    "ioredis": "^6.0.0",
+    "zod": "^3.25.76",
+    "zod-to-json-schema": "^3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3",
+    "yaml": "^2.8.1"
+  }
+}

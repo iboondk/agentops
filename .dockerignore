@@ -1,0 +1,11 @@
+node_modules
+data
+reports
+.env
+.env.*
+!.env.example
+.git
+.vitest
+coverage
+dist
+*.log

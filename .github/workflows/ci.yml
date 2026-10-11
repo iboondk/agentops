@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Typecheck, test and eval (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22, 24]
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      # Enables the BullMQ test suite, which is skipped when this variable is unset.
+      REDIS_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Regression eval (writes reports/cost-per-task.*)
+        run: npm run eval
+
+      - name: Upload eval report
+        if: matrix.node-version == 24
+        uses: actions/upload-artifact@v4
+        with:
+          name: cost-per-task
+          path: reports/cost-per-task.*
+          if-no-files-found: error
+
+  compose:
+    name: Compose structure and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate docker-compose.yml structure
+        run: npm run validate:compose
+
+      - name: Validate compose file with Docker
+        run: docker compose config --quiet
+
+      - name: Build the image
+        run: docker compose build

@@ -1,0 +1,65 @@
+# Full stack: API, queue worker and trace UI on one image, with Redis (BullMQ) between them.
+#
+# Not executed in the development environment where this file was written (docker is not
+# installed there). Run `docker compose config` to validate, then `docker compose up --build`.
+#
+# Optional OTLP export: the worker reads your local .env (copied from .env.example, optional).
+# When .env sets OTEL_EXPORTER_OTLP_ENDPOINT, every job the worker runs exports its spans, and
+# LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are added as Basic auth if they are set. Langfuse
+# itself is not bundled. Never put real keys in this file.
+
+name: agentops
+
+services:
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    image: agentops:local
+    command: ["npx", "tsx", "src/api/server.ts"]
+    environment:
+      REDIS_URL: redis://redis:6379
+      API_PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: .
+    image: agentops:local
+    command: ["npx", "tsx", "src/queue/worker.ts"]
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      REDIS_URL: redis://redis:6379
+      TRACE_DIR: /app/data/traces
+    volumes:
+      - traces:/app/data/traces
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  ui:
+    build: .
+    image: agentops:local
+    command: ["npx", "tsx", "src/ui/server.ts"]
+    environment:
+      TRACE_DIR: /app/data/traces
+      UI_PORT: "4318"
+      UI_HOST: "0.0.0.0"
+    ports:
+      - "4318:4318"
+    volumes:
+      - traces:/app/data/traces
+
+volumes:
+  traces:

@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AgentOps Traces</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --text: #1b1f24;
+      --muted: #5f6b7a;
+      --border: #d9dee5;
+      --row-hover: #eef2f7;
+      --row-active: #dfe9f7;
+      --bar: #3b78d8;
+      --bar-error: #d64545;
+      --ok: #1f8a4c;
+      --ok-bg: #e2f5ea;
+      --err: #b42318;
+      --err-bg: #fde5e3;
+      --code-bg: #f1f3f6;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #111418;
+        --panel: #1a1e24;
+        --text: #e6e9ee;
+        --muted: #9aa5b4;
+        --border: #2d343e;
+        --row-hover: #222831;
+        --row-active: #263449;
+        --bar: #5b93e8;
+        --bar-error: #ef6b6b;
+        --ok: #5fd08f;
+        --ok-bg: #173424;
+        --err: #ff8a80;
+        --err-bg: #3a1b1b;
+        --code-bg: #14181d;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #111418;
+      --panel: #1a1e24;
+      --text: #e6e9ee;
+      --muted: #9aa5b4;
+      --border: #2d343e;
+      --row-hover: #222831;
+      --row-active: #263449;
+      --bar: #5b93e8;
+      --bar-error: #ef6b6b;
+      --ok: #5fd08f;
+      --ok-bg: #173424;
+      --err: #ff8a80;
+      --err-bg: #3a1b1b;
+      --code-bg: #14181d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    header h1 { font-size: 16px; margin: 0; }
+    button {
+      font: inherit;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(240px, 320px) 1fr;
+      gap: 0;
+      min-height: calc(100vh - 53px);
+    }
+    aside {
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      overflow-y: auto;
+      max-height: calc(100vh - 53px);
+    }
+    main {
+      padding: 16px;
+      min-width: 0;
+      overflow-x: hidden;
+    }
+    .trace-item {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .trace-item:hover { background: var(--row-hover); }
+    .trace-item.active { background: var(--row-active); }
+    .trace-item .name { font-weight: 600; overflow-wrap: anywhere; }
+    .trace-item .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .trace-item .id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 999px;
+      margin-right: 6px;
+      vertical-align: 1px;
+    }
+    .badge.ok { color: var(--ok); background: var(--ok-bg); }
+    .badge.error { color: var(--err); background: var(--err-bg); }
+    .summary { color: var(--muted); margin-bottom: 12px; }
+    .empty { color: var(--muted); padding: 24px 0; }
+    .waterfall {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .wf-head, .wf-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 38%) 1fr 84px;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+    }
+    .wf-head {
+      color: var(--muted);
+      font-size: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .wf-row {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+    .wf-row:last-child { border-bottom: none; }
+    .wf-row:hover { background: var(--row-hover); }
+    .wf-row.active { background: var(--row-active); }
+    .wf-name {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+    .wf-track {
+      position: relative;
+      height: 14px;
+      background: var(--code-bg);
+      border-radius: 4px;
+      min-width: 0;
+    }
+    .wf-bar {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      min-width: 2px;
+      border-radius: 4px;
+      background: var(--bar);
+    }
+    .wf-bar.error { background: var(--bar-error); }
+    .wf-dur {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .detail {
+      margin-top: 16px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .detail h2 { font-size: 14px; margin: 0 0 8px; overflow-wrap: anywhere; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    th { width: 34%; color: var(--muted); font-weight: 500; }
+    td code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      margin: 0;
+    }
+    .events { margin-top: 12px; }
+    .error-text { color: var(--err); }
+    @media (max-width: 760px) {
+      .layout { grid-template-columns: 1fr; }
+      aside { max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
+      .wf-head, .wf-row { grid-template-columns: minmax(110px, 40%) 1fr 70px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AgentOps traces</h1>
+    <button id="refresh" type="button">Refresh</button>
+  </header>
+  <div class="layout">
+    <aside id="list" aria-label="Trace list"></aside>
+    <main>
+      <div id="summary" class="summary"></div>
+      <div id="waterfall" aria-live="polite"></div>
+      <div id="detail"></div>
+    </main>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var listEl = document.getElementById('list');
+      var summaryEl = document.getElementById('summary');
+      var waterfallEl = document.getElementById('waterfall');
+      var detailEl = document.getElementById('detail');
+      var selectedTrace = null;
+      var selectedSpan = null;
+      var currentSpans = [];
+
+      function el(tag, cls, text) {
+        var node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text !== undefined && text !== null) node.textContent = String(text);
+        return node;
+      }
+
+      function fmtMs(ms) {
+        if (ms === undefined || ms === null || isNaN(ms)) return '-';
+        if (ms < 1) return ms.toFixed(3) + ' ms';
+        if (ms < 1000) return ms.toFixed(1) + ' ms';
+        return (ms / 1000).toFixed(2) + ' s';
+      }
+
+      function fmtUsd(v) {
+        var n = Number(v);
+        if (!isFinite(n)) return '-';
+        return '$' + n.toFixed(6);
+      }
+
+      function fmtTime(ms) {
+        return new Date(ms).toLocaleString();
+      }
+
+      function fetchJson(url) {
+        return fetch(url, { headers: { Accept: 'application/json' } }).then(function (res) {
+          if (!res.ok) throw new Error(url + ' -> HTTP ' + res.status);
+          return res.json();
+        });
+      }
+
+      function statusBadge(status) {
+        var s = status === 'error' ? 'error' : 'ok';
+        return el('span', 'badge ' + s, s);
+      }
+
+      function loadList(keepSelection) {
+        return fetchJson('/api/traces').then(function (traces) {
+          listEl.textContent = '';
+          if (!traces.length) {
+            listEl.appendChild(el('div', 'empty', 'No traces yet. Run an agent with tracing enabled.'));
+            summaryEl.textContent = '';
+            waterfallEl.textContent = '';
+            return;
+          }
+          if (!keepSelection || !selectedTrace) selectedTrace = traces[0].traceId;
+          traces.forEach(function (t) {
+            var item = el('div', 'trace-item' + (t.traceId === selectedTrace ? ' active' : ''));
+            var name = el('div', 'name');
+            name.appendChild(statusBadge(t.status));
+            name.appendChild(document.createTextNode(t.rootName));
+            item.appendChild(name);
+            item.appendChild(el('div', 'meta', fmtTime(t.startMs) + ' · ' + fmtMs(t.durationMs) +
+              ' · ' + fmtUsd(t.costUsd) + ' · ' + t.spanCount + ' spans'));
+            item.appendChild(el('div', 'id', t.traceId));
+            item.addEventListener('click', function () { selectTrace(t.traceId); });
+            listEl.appendChild(item);
+          });
+          return selectTrace(selectedTrace, traces);
+        }).catch(function (err) {
+          listEl.textContent = '';
+          listEl.appendChild(el('div', 'empty error-text', 'Failed to load traces: ' + err.message));
+        });
+      }
+
+      function selectTrace(traceId, traces) {
+        selectedTrace = traceId;
+        selectedSpan = null;
+        Array.prototype.forEach.call(listEl.querySelectorAll('.trace-item'), function (node) {
+          node.classList.toggle('active', node.querySelector('.id').textContent === traceId);
+        });
+        return fetchJson('/api/traces/' + encodeURIComponent(traceId)).then(function (spans) {
+          currentSpans = spans;
+          renderWaterfall(traceId, spans);
+        }).catch(function (err) {
+          waterfallEl.textContent = '';
+          waterfallEl.appendChild(el('div', 'empty error-text', 'Failed to load trace: ' + err.message));
+        });
+      }
+
+      /** Depth-first order by parent link, siblings by start time. Each row carries its depth. */
+      function buildRows(spans) {
+        var byId = {};
+        spans.forEach(function (s) { byId[s.spanId] = s; });
+        var children = {};
+        var roots = [];
+        spans.forEach(function (s) {
+          if (s.parentSpanId && byId[s.parentSpanId]) {
+            (children[s.parentSpanId] = children[s.parentSpanId] || []).push(s);
+          } else {
+            roots.push(s);
+          }
+        });
+        var byStart = function (a, b) { return a.startMs - b.startMs; };
+        var rows = [];
+        function visit(span, depth) {
+          rows.push({ span: span, depth: depth });
+          (children[span.spanId] || []).sort(byStart).forEach(function (c) { visit(c, depth + 1); });
+        }
+        roots.sort(byStart).forEach(function (r) { visit(r, 0); });
+        return rows;
+      }
+
+      function renderWaterfall(traceId, spans) {
+        waterfallEl.textContent = '';
+        detailEl.textContent = '';
+        if (!spans.length) {
+          waterfallEl.appendChild(el('div', 'empty', 'This trace has no spans.'));
+          summaryEl.textContent = '';
+          return;
+        }
+        var traceStart = Math.min.apply(null, spans.map(function (s) { return s.startMs; }));
+        var traceEnd = Math.max.apply(null, spans.map(function (s) { return s.endMs; }));
+        var total = Math.max(traceEnd - traceStart, 0.001);
+        var root = spans.filter(function (s) { return !s.parentSpanId; })[0] || spans[0];
+        var rootCost = root.attributes && root.attributes['agent.cost_usd'];
+
+        summaryEl.textContent = root.name + ' · ' + fmtMs(total) + ' · ' +
+          (rootCost !== undefined ? fmtUsd(rootCost) : '') + ' · ' + spans.length + ' spans · ' + traceId;
+
+        var table = el('div', 'waterfall');
+        var head = el('div', 'wf-head');
+        head.appendChild(el('div', null, 'Span'));
+        head.appendChild(el('div', null, 'Timeline (0 to ' + fmtMs(total) + ')'));
+        head.appendChild(el('div', 'wf-dur', 'Duration'));
+        table.appendChild(head);
+
+        buildRows(spans).forEach(function (row) {
+          var s = row.span;
+          var line = el('div', 'wf-row' + (selectedSpan === s.spanId ? ' active' : ''));
+          var name = el('div', 'wf-name');
+          name.style.paddingLeft = (row.depth * 14) + 'px';
+          name.textContent = (row.depth ? '↳ ' : '') + s.name;
+          name.title = s.name;
+          line.appendChild(name);
+
+          var track = el('div', 'wf-track');
+          var left = ((s.startMs - traceStart) / total) * 100;
+          var width = Math.max((s.durationMs / total) * 100, 0.4);
+          var bar = el('div', 'wf-bar' + (s.status === 'error' ? ' error' : ''));
+          bar.style.left = Math.min(Math.max(left, 0), 100) + '%';
+          bar.style.width = Math.min(width, 100 - Math.min(Math.max(left, 0), 100)) + '%';
+          track.appendChild(bar);
+          line.appendChild(track);
+
+          line.appendChild(el('div', 'wf-dur', fmtMs(s.durationMs)));
+          line.addEventListener('click', function () {
+            selectedSpan = s.spanId;
+            Array.prototype.forEach.call(table.querySelectorAll('.wf-row'), function (n) { n.classList.remove('active'); });
+            line.classList.add('active');
+            renderDetail(s);
+          });
+          table.appendChild(line);
+        });
+        waterfallEl.appendChild(table);
+
+        var chosen = spans.filter(function (s) { return s.spanId === selectedSpan; })[0];
+        if (chosen) renderDetail(chosen);
+      }
+
+      function valueCell(value) {
+        var td = el('td');
+        if (value !== null && typeof value === 'object') {
+          td.appendChild(el('code', null, JSON.stringify(value, null, 2)));
+        } else {
+          td.appendChild(el('code', null, value === undefined ? '' : String(value)));
+        }
+        return td;
+      }
+
+      function renderDetail(span) {
+        detailEl.textContent = '';
+        var box = el('div', 'detail');
+        box.appendChild(el('h2', null, span.name));
+
+        var meta = el('table');
+        var metaRows = [
+          ['status', span.status],
+          ['spanId', span.spanId],
+          ['parentSpanId', span.parentSpanId || '(root)'],
+          ['traceId', span.traceId],
+          ['startMs', span.startMs],
+          ['endMs', span.endMs],
+          ['durationMs', span.durationMs.toFixed(3)]
+        ];
+        metaRows.forEach(function (r) {
+          var tr = el('tr');
+          tr.appendChild(el('th', null, r[0]));
+          tr.appendChild(valueCell(r[1]));
+          meta.appendChild(tr);
+        });
+        box.appendChild(meta);
+        box.appendChild(el('h3', null, 'Attributes'));
+        var attrs = el('table');
+        var keys = Object.keys(span.attributes || {}).sort();
+        if (!keys.length) {
+          var emptyRow = el('tr');
+          emptyRow.appendChild(el('td', null, 'No attributes'));
+          attrs.appendChild(emptyRow);
+        }
+        keys.forEach(function (k) {
+          var tr = el('tr');
+          tr.appendChild(el('th', null, k));
+          tr.appendChild(valueCell(span.attributes[k]));
+          attrs.appendChild(tr);
+        });
+        box.appendChild(attrs);
+
+        if (span.events && span.events.length) {
+          var evWrap = el('div', 'events');
+          evWrap.appendChild(el('h3', null, 'Events'));
+          span.events.forEach(function (ev) {
+            evWrap.appendChild(el('div', null, ev.name + ' @ ' + fmtTime(ev.timeMs)));
+            var evTable = el('table');
+            Object.keys(ev.attributes || {}).sort().forEach(function (k) {
+              var tr = el('tr');
+              tr.appendChild(el('th', null, k));
+              tr.appendChild(valueCell(ev.attributes[k]));
+              evTable.appendChild(tr);
+            });
+            evWrap.appendChild(evTable);
+          });
+          box.appendChild(evWrap);
+        }
+
+        detailEl.appendChild(box);
+      }
+
+      document.getElementById('refresh').addEventListener('click', function () { loadList(true); });
+      loadList(false);
+    })();
+  </script>
+</body>
+</html>
